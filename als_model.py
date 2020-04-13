@@ -13,6 +13,8 @@ import numpy as np
 import tqdm
 import os
 import metric_utils as mu
+import pickle
+import json
 
 def tuneALS(tr_train, tr_val, factors=[20], cashed_model = None, t_users=[]):
     
@@ -134,3 +136,13 @@ def tuneALS(tr_train, tr_val, factors=[20], cashed_model = None, t_users=[]):
             test_result[user_uid] = [int(tr_train['element_uid'].cat.categories[i]) for i, _ in t_recs]
             
     return best_model, best_score, test_result
+
+
+def saveSubmit(name, model, results):
+    with open('submits/{0}.json'.format(name), 'w') as f:
+        json.dump(t_result, f)
+    print('Saved results {0}.json'.format(name))
+
+    with open('submits/model_{0}.pkl'.format(name), 'wb') as f:
+        pickle.dump(model, f)
+    print('Saved model model_{0}.pkl'.format(name))

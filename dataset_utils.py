@@ -15,7 +15,6 @@ import numpy as np
 # settings
 DATA_PATH = './'
 
-
 def processCatalogue():
     
     with open(os.path.join(DATA_PATH, 'catalogue.json'), 'r') as f:
@@ -244,8 +243,8 @@ def _makePurchaseTarget(row, params):
     return y        
 
 
-def makeTarget(ds, catalogue, bookmarks, ratings, params = {'bookmarked': 7, 'purchased': 10, 
-                             'watched_movie': 7, 'watched_series': 8, 'watch_failed': 3}, tr_weight = 1.0):
+def makeTarget(ds, catalogue, bookmarks, ratings, params = {'bookmarked': 5, 'purchased': 10, 
+                             'watched_movie': 8, 'watched_series': 9, 'watch_failed': 1}, tr_weight = 1.0, blend_rating=False):
         
     # add catalogue
     features_list = ['element_uid', 'user_uid', 'watched_time', 'consumption_mode']
@@ -254,11 +253,37 @@ def makeTarget(ds, catalogue, bookmarks, ratings, params = {'bookmarked': 7, 'pu
     ds = ds.merge(catalogue[['element_id', 'target_time', 'is_series']], 
                           left_on='element_uid', right_on='element_id', how = 'left')
     
-    ds['y'] = ds.apply(lambda row: _makePurchaseTarget(row, params), axis=1)
-    
-    
-    
+    # add ratings converted to scale -5.0 -- + 5.0
+    # NaN = 0
+    ds = ds.merge(ratings[['user_uid', 'element_uid', 'rating']], left_on=['user_uid', 'element_uid'], right_on=['user_uid', 'element_uid'], how='left')
+    ds[['rating']] = ds[['rating']].fillna(value=5.0)
+    ds['rating'] = ds['rating'] - 5.0
+
+    # add bookmarks
+    # NaN = 0
+    bookmarks['bm_rating'] = params['bookmarked']
+    ds = ds.merge(bookmarks[['user_uid', 'element_uid', 'bm_rating']], left_on=['user_uid', 'element_uid'], right_on=['user_uid', 'element_uid'], how='left')
+    ds[['bm_rating']] = ds[['bm_rating']].fillna(value=0.0)
+
+    ds['tr_rating'] = ds.apply(lambda row: _makePurchaseTarget(row, params), axis=1)
+
+    if blend_rating:
+        # blend ratings
+        ds['y'] = ds['tr_rating'] + ds['rating'] + ds['bm_rating']
+
+        # convert to 0-10 scale
+        ds['y'] = ds['y'] - ds['y'].min()
+        ds['y'] = ds['y'] * (10.0/ds['y'].max())
+    else:
+        ds['y'] = ds['tr_rating']    
+
+    return ds[['user_uid', 'element_uid', 'y', 'tr_rating']]
+
+def makeTargetRating(ds):
+    ds['y'] = ds['rating']
     return ds[['user_uid', 'element_uid', 'y']]
 
-
+def makeTargetBookmarks(ds):
+    ds['y'] = 8
+    return ds[['user_uid', 'element_uid', 'y']]
         
